@@ -52,4 +52,7 @@ sheathLength = 20;  // 刀鞘长度。
 // L: 28
 // M: 22
 // S: 18
-open_sheath(openWidth=22, $fn=32);    // 刀鞘口宽度，
+openWidth=22;   // 命令行方式可以通过 -D openWidth=x 覆盖变量值来调整开口宽度
+open_sheath(openWidth, $fn=32);    // 刀鞘口宽度，
+
+echo(openWidth=openWidth);
