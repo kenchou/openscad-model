@@ -1,6 +1,6 @@
 Multi-Device Holder
 ==================
-[[中文说明 (README_zh.md)]]
+[[中文说明](README_zh.md)]
 
 A multi-device stand that can be mounted on a multi-port charger. It is customizable to hold multiple smartphones, tablets, power
 banks, and other devices.

@@ -1,6 +1,6 @@
 多设备支架
 ========
-[[English Readme (README.md)]]
+[[English Readme](README.md)]
 
 多设备支架，可以架在多口充电器上。可定制多部手机、平板、充电宝等设备。
 
