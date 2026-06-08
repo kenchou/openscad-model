@@ -25,10 +25,10 @@ difference() {
 rect_tube(size=inner_size, wall=10, h=1, irounding=rounding_size, rounding=rounding_size);
 
 // 参数定义
-inner_size=[47,47];
+inner_size=[56,56];
 wall_thickness = 2;    // 壁厚
-height = 20;             // 高度
-rounding_size = 4;      // 底部圆角大小
+height = 15;             // 高度
+rounding_size = 6;      // 底部圆角大小
 top_chamfer = 1;        // 上部外侧倒角大小
 
 outer_size = inner_size + [2*wall_thickness, 2*wall_thickness];
