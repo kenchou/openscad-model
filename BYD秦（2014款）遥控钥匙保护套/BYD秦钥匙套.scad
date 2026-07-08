@@ -4,7 +4,7 @@
 render_mode = "together"; // ["together","top","bottom","assembled"]
 
 // 圆角半径：从STL反求 (45-32.37)/2
-corner_r = 6.31;
+corner_r = 6.00;
 
 wall_th = 1.3;
 $fn = 64;
