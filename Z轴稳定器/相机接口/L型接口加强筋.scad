@@ -38,6 +38,30 @@ module corner_fillet_fill(r=3, r_back=19.4, y_back=7.4){
         ));
 }
 
+// 方管内壁 |y|=7 与圆管内壁 r=19 交接处(17.664,±7)是一个凸出的尖点(凸角)。
+// 用与内壁 r=R、内腔顶 y=yc 相切的圆弧把尖点磨掉, 变成圆润的凸点。
+//  r   —— 磨圆半径
+module inner_convex_cut(r=2){
+    R = 19;                 // 圆管内半径
+    yc = 7;                 // 方管内半宽(上/下内壁 y=±7)
+    cxp = sqrt((R+r)*(R+r) - (yc+r)*(yc+r));   // 圆心 x
+    C = [cxp, yc+r];                           // 圆心(材料侧: r>R、y>yc)
+    tline = [cxp, yc];      // 与方管内壁 y=yc 切点
+    tcirc = R/(R+r)*C;      // 与圆管内壁 r=R 切点
+    corner = [sqrt(R*R-yc*yc), yc];            // 角点 (17.664,7)
+    a_corner = atan2(yc, sqrt(R*R-yc*yc));
+    a_tcirc = atan2(tcirc[1], tcirc[0]);
+    b0 = atan2(tcirc[1]-C[1], tcirc[0]-C[0]);
+    b1 = atan2(tline[1]-C[1], tline[0]-C[0]);
+    linear_extrude(height=interface_h+20) polygon(concat(
+        [ corner ],
+        [ for(k=[0:28]) let(a=a_corner+(a_tcirc-a_corner)*k/28) [R*cos(a), R*sin(a)] ],  // 沿 r=R 到切点
+        [ tcirc ],
+        [ for(k=[0:28]) let(b=b0+(b1-b0)*k/28) [C[0]+r*cos(b), C[1]+r*sin(b)] ],        // 圆角弧
+        [ tline ]
+    ));
+}
+
 module rib() {
     union() {
     difference() {
@@ -50,17 +74,20 @@ module rib() {
                         rect_tube(h=interface_h, size=[6+2, 16], wall=1, anchor=BOTTOM);
                 cyl(h=interface_h, r=base_r-1, anchor=BOTTOM) position(CENTER+BOTTOM) translate([20, 0, 0]) cube([6,14,interface_h+10], anchor=BOTTOM);
             };
-            // 方管/圆管交界处圆角过渡(上、下各一处)
+            // 方管/圆管交界处外侧凹角填料圆角(上、下各一处)
             corner_fillet_fill(r=FILL_R);
             mirror([0,1,0]) corner_fillet_fill(r=FILL_R);
         }
+        // 方管内壁与圆管内壁交接凸角: 磨掉尖点(上、下两处)
+        #translate([-0.1,0,0]) inner_convex_cut(r=INNER_R);
+        #translate([-0.1,0,0]) mirror([0,1,0]) inner_convex_cut(r=INNER_R);
         translate([-5,0,0]) ycyl(h=50, r=30, anchor=BOTTOM);
     };
     translate([23,0,4]) fillet(l=16, r=5.35, ang=90, spin=180, orient=BACK);
     }
 }
 
-base();
+//base();
 rib();
 //rect_tube(h=interface_h, size=[16, 16], wall=1, anchor=BOTTOM);
 
@@ -69,4 +96,5 @@ $fn=64;
 base_h=4;
 base_r=20;
 interface_h=30;
-FILL_R=3;         // 方管/圆管交界处圆角过渡半径(可见圆滑过渡面的大小)
+FILL_R=3;         // 方管/圆管交界处外侧凹角填料圆角半径
+INNER_R=2;        // 方管内壁与圆管内壁交接凸角磨圆半径(把凸出尖点磨掉)
