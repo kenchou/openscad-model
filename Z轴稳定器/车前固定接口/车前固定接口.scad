@@ -25,18 +25,19 @@ HOLE_ALT13 = 26.4;  // 孔1 - 孔3 备选间距(若三孔等分)
 HOLE_ALT12 = 12.5;  // 孔1 - 孔2 备选间距(若三孔等分)
 SLOT_EXT   = 0.6;   // 孔槽两端额外余量(mm)
 
-// 延长臂
+// 延长臂 (两段式)
 ARM_W      = 20;     // 臂宽 (X) —— 独立设置
 ARM_T      = 12;     // 臂厚 (Y) —— 独立设置
-ARM_OFFSET = 14;    // 臂向猪鼻侧(+Y)的水平偏移
-ARM_BEND   = 20;    // 弯段高度(mm): 底座顶 → 竖直段起点 的平滑过渡
-ARM_VERT   = 20;    // 臂端竖直直臂长度(mm)
-ARM_DIR    = +1;    // +1 = 向 +Y(远离螺丝座=猪鼻环侧); -1 = 反向
-FC         = 64;    // 扫描细分段数(越大越平滑)
+ARM_OFFSET = 14;     // 上段相对底座的水平偏移(向猪鼻侧 +Y)
+ARM_BEND   = 20;     // 下段(平滑连接段)高度 (Z)
+ARM_VERT   = 20;     // 上段(末段直臂)长度 (沿 ARM_TIP_ANGLE 方向)
+ARM_TIP_ANGLE = 60;  // 上段最终倾角(与水平面夹角, °): 90=垂直(当前状态), 0=水平
+ARM_CURVE  = 0.6;    // 下段贝塞尔转折力度 0~1(越大越平缓; 影响连接段形状, 不影响端点)
+ARM_DIR    = +1;     // +1 = 向 +Y(远离螺丝座=猪鼻环侧); -1 = 反向
+FC         = 64;     // 扫描细分段数(越大越平滑)
 
-// 臂顶 z(总高)= 底座高 + 弯段高 + 竖直段长
-ARM_TOP    = BASE_H + ARM_BEND + ARM_VERT;
-RH = HOLE_D/2;      // M5 间隙孔半径
+// M5 间隙孔半径
+RH = HOLE_D/2;
 
 // ========== 底座(居中于 x=0, y=0; 0..BASE_H) ==========
 // 竖槽: z∈[0, SLOT_TOP] 底面开口; X 居中宽 SLOT_W; 前侧(-Y)挖 SLOT_D, 留背部 SLOT_D 厚壁。
@@ -75,35 +76,60 @@ module holes() {
     vh_slot((z3n+z3a)/2, abs(z3n-z3a) + 2*SLOT_EXT);
 }
 
-// ========== 延长臂: S 形弯段 + 顶端竖直直臂段 ==========
-// 中心线 y(t)=ARM_OFFSET*(1-cos(180t))/2 (度制), z(t)=BASE_H+(ARM_TOP-BASE_H)*t。
-// 截面从底座截面(BASE_W x BASE_T)平滑过渡到臂截面(ARM_W x ARM_T), 余弦缓动。
+// ========== 延长臂: 下段(平滑连接) + 上段(固定倾角直臂) ==========
+// 上段: 直臂, 起点 S=(ARM_OFFSET, BASE_H+ARM_BEND), 方向角 = ARM_TIP_ANGLE(与水平面夹角), 长 ARM_VERT。
+// 下段: 三次 Bézier 从底座顶 P0=(0,BASE_H)(切向竖直 +Z)平滑过渡到 S;
+//       末端切向 = (cos TIP, sin TIP) = 上段切向, 故两端无折角。横向偏移由 ARM_OFFSET 决定。
+// 截面从底座(BASE_W x BASE_T)沿下段平滑过渡到臂(ARM_W x ARM_T), 上段保持臂截面。
 // 注意: 本 OpenSCAD 的 cos/sin/atan2 以"度"为单位(cos(90)=0)。
-function _cy(z, zc0, zb0, off0) = (z <= zb0)
-    ? off0 * (1 - cos(180 * (z - zc0)/(zb0 - zc0))) / 2
-    : off0;
 function _ease(u) = (u >= 1) ? 1 : (u <= 0 ? 0 : (1 - cos(180*u))/2);
+// 三次 Bézier 点(2D, (y,z) 平面)
+function _bez(p0,c1,c2,p3,u) =
+    let(v = 1-u,
+        a = v*v*v, b = 3*v*v*u, c = 3*v*u*u, d = u*u*u)
+    [a*p0[0]+b*c1[0]+c*c2[0]+d*p3[0],
+     a*p0[1]+b*c1[1]+c*c2[1]+d*p3[1]];
+// 三次 Bézier 切线(2D)
+function _bezd(p0,c1,c2,p3,u) =
+    let(v = 1-u,
+        a = 3*v*v, b = 6*v*u, c = 3*u*u)
+    [a*(c1[0]-p0[0])+b*(c2[0]-c1[0])+c*(p3[0]-c2[0]),
+     a*(c1[1]-p0[1])+b*(c2[1]-c1[1])+c*(p3[1]-c2[1])];
 
 module arm() {
     N  = FC;
-    ZB = BASE_H + ARM_BEND;            // 弯段顶 = 竖直段起点
+    tip= ARM_TIP_ANGLE;
+    // ---- 下段(连接段)端点/控制点 ----
+    p0 = [0, BASE_H];                       // 底座顶, 切向竖直(+Y? 不, +Z; 用 (y,z)=(0,BASE_H))
+    p3 = [ARM_DIR*ARM_OFFSET, BASE_H + ARM_BEND];   // 上段起点
+    // 切向: 起点竖直(0,+1); 终点 = (cosTIP, sinTIP) 同方向于上段
+    h  = ARM_CURVE * sqrt(pow(ARM_OFFSET,2) + pow(ARM_BEND,2))/2 + 1e-9;
+    c1 = [p0[0], p0[1] + h];                // 切向竖直
+    c2 = [p3[0] - h*cos(tip), p3[1] - h*sin(tip)]; // 切向 = tip
     for(i=[0:N-1]) {
-        z0 = BASE_H + (ARM_TOP - BASE_H) * i/N;
-        z1 = BASE_H + (ARM_TOP - BASE_H) * (i+1)/N;
-        zc = (z0 + z1)/2;
-        yy = ARM_DIR * _cy(zc, BASE_H, ZB, ARM_OFFSET);
-        dyf = _cy(z1, BASE_H, ZB, ARM_OFFSET) - _cy(z0, BASE_H, ZB, ARM_OFFSET);
-        dzf = z1 - z0;
-        th  = atan2(dyf, dzf);         // 切线相对 +Z 的倾角(度)
-        // 截面随弯段平滑过渡: BASE -> ARM
-        u  = (zc - BASE_H) / max(ARM_BEND, 1e-9);
-        e  = _ease(u);
+        u0 = i/N; u1 = (i+1)/N; uc = (u0+u1)/2;
+        pp = _bez(p0, c1, c2, p3, uc);
+        dd = _bezd(p0, c1, c2, p3, uc);
+        th = atan2(dd[0], dd[1]);           // 切线相对 +Z 的倾角(度)
+        e  = _ease(uc);
         w  = BASE_W + (ARM_W - BASE_W)*e;
-        th2= BASE_T + (ARM_T - BASE_T)*e;
-        L  = 2.6*(ARM_TOP - BASE_H)/N; // 每段长度(稍重叠保证连续)
-        translate([0, yy, zc])
-            rotate([-th, 0, 0])        // 绕 X 旋转, 使本段沿切线方向
-            cube([w, th2, L], center=true);
+        tt = BASE_T + (ARM_T - BASE_T)*e;
+        L  = 2.6 * sqrt(pow(p3[0]-p0[0],2)+pow(p3[1]-p0[1],2)) / N;
+        translate([0, pp[0], pp[1]])
+            rotate([-th, 0, 0])
+            cube([w, tt, L], center=true);
+    }
+    // ---- 上段(固定倾角直臂) ----
+    dir  = [cos(tip), sin(tip)];            // (y,z) 平面方向
+    ds   = ARM_VERT/N;
+    for(i=[0:N-1]) {
+        s  = (i+0.5)*ds;
+        yy = ARM_DIR*ARM_OFFSET + dir[0]*s;
+        zz = (BASE_H + ARM_BEND) + dir[1]*s;
+        th = atan2(dir[0], dir[1]);         // 恒 = 90-tip? 相对 +Z
+        translate([0, yy, zz])
+            rotate([-th, 0, 0])
+            cube([ARM_W, ARM_T, 2.6*ds], center=true);
     }
 }
 
