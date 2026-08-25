@@ -32,21 +32,24 @@ ARM_W      = 20;     // 臂宽 (X) —— 独立设置
 ARM_T      = 16;     // 臂厚 (Y) —— 独立设置
 ARM_OFFSET = 20;     // 臂相对底座的水平偏移(向猪鼻侧 +Y)
 ARM_BEND   = 20;     // 下段(横移连接段)高度 (Z)
-ARM_VERT   = 50;     // 主直臂长度 (mm), 方向由 ARM_MAIN_ANGLE 决定
+ARM_VERT   = 10;     // 主直臂长度 (mm), 方向由 ARM_MAIN_ANGLE 决定
 ARM_MAIN_ANGLE = 75; // 主直臂倾角(与水平面夹角, °): 90=垂直(当前状态), <90 向+Y(猪鼻侧)倒
-ARM_TIP_ANGLE = 120; // 顶部件倾角(与水平面夹角, °): 90=垂直(=主直臂的延续), >90 向-Y倒, <90 向+Y倒
-ARM_TIP_LEN  = 25;   // 顶部件长度 (mm)
+ARM_TIP_ANGLE = 75; // 顶部件倾角(与水平面夹角, °): 90=垂直(=主直臂的延续), >90 向-Y倒, <90 向+Y倒
+ARM_TIP_LEN  = 25;   // 顶部件总长度 (mm) = 锥形段 + 方柱段
+TIP_TAPER    = 10;   // 顶部件锥形段长 (mm): 从主臂截面(20×16)收窄到(20×13)
+TIP_NECK     = 15;   // 顶部件方柱段长 (mm): 固定 20×13 截面(贴合圆盘); 两段之和 = ARM_TIP_LEN
 ARM_CURVE  = 0.6;    // 下段贝塞尔转折力度 0~1(越大越平缓)
 ARM_DIR    = +1;     // +1 = 向 +Y(远离螺丝座=猪鼻环侧); -1 = 反向
 FC         = 64;     // 扫描细分段数(越大越平滑)
 
 // 圆形连接件(热熔螺母接口) —— 固定在顶部(用 ARM_TIP_ANGLE 控制臂顶角度), 方向固定
 //   朝向: 盘面垂直X(圆盘在Y-Z平面), 凹点面朝 +X(右)、凸点面朝 −X(左), 中央孔沿X贯通。
-//   放置: 圆盘中心 = 臂顶正上方。过渡 = 一个棱锥(大端=臂顶方截面, 小端=圆盘中心),
-//         小端用"半径=圆盘半径(15)的圆柱"磨成凹圆弧 → 凹弧贴合圆盘外缘, 不侵入圆盘。
-CONN_LIFT  = 22;    // 圆盘中心高出臂顶 z 的距离(mm): ≈ 圆盘半径15 + 臂厚半8 + 间隙; 圆盘下缘留出空隙
-CONN_X     = 3.5;   // 圆盘中心 x(mm): 凹点面(x = 3.5 + 13/2 = 10)与臂右面(x=+10)齐平
+//   放置: 圆盘中心 = 顶部件末端沿顶部件方向(_CTD)延伸 CONN_GAP 处, 圆盘以弦宽(=TIP_CHORD)贴合末端。
 CONN_R     = 15;    // 圆盘半径 & 磨圆柱半径 (= circular_connector 默认 R)
+TIP_CHORD  = 20;    // 末端贴合圆盘的弦宽 (=2/3 D30): 顶部件末端 Y 方向尺寸
+TIP_THK    = 13;    // 末端厚度 = 圆盘厚度: 顶部件末端 X 方向尺寸
+CONN_GAP   = sqrt(CONN_R*CONN_R - pow(TIP_CHORD/2,2)); // 圆盘外缘以弦宽 TIP_CHORD 嵌入末端(≈11.18)
+CONN_X     = 3.5;   // 圆盘中心 x(mm): 凹点面(x = 3.5 + 13/2 = 10)与臂右面(x=+10)齐平
 // ---- 连接件位置(内部计算, 不手动改) ----
 _CMAIN = ARM_MAIN_ANGLE; _CTIP = ARM_TIP_ANGLE;
 _CMD   = [ARM_DIR*cos(_CMAIN), sin(_CMAIN)];          // 主直臂方向 (y,z)
@@ -54,8 +57,8 @@ _CP3   = [ARM_DIR*ARM_OFFSET, BASE_H + ARM_BEND];      // 主臂起点
 _CQ0   = [_CP3[0]+_CMD[0]*ARM_VERT, _CP3[1]+_CMD[1]*ARM_VERT]; // 主臂顶端
 _CTD   = [ARM_DIR*cos(_CTIP), sin(_CTIP)];             // 顶部件方向 (y,z)
 _CQ3   = [_CQ0[0]+ARM_TIP_LEN*_CTD[0], _CQ0[1]+ARM_TIP_LEN*_CTD[1]]; // 顶部件末端(臂顶)
-// 圆盘中心 = 臂顶正上方(竖直): y 与臂顶相同, z = 臂顶 z + CONN_LIFT
-_CONP   = [ _CQ3[0],  _CQ3[1] + CONN_LIFT ];           // 圆盘中心(y,z)
+// 圆盘中心 = 臂顶末端 + 沿顶部件方向 * CONN_GAP
+_CONP   = [ _CQ3[0] + CONN_GAP*_CTD[0],  _CQ3[1] + CONN_GAP*_CTD[1] ]; // 圆盘中心(y,z)
 
 // M5 间隙孔半径
 RH = HOLE_D/2;
@@ -146,47 +149,54 @@ module arm() {
         th = atan2(mdir[0], mdir[1]);
         translate([0, yy, zz]) rotate([-th,0,0]) cube([ARM_W, ARM_T, 2.6*ds], center=true);
     }
-    // ---- 3) 顶部件(倾角=ARM_TIP_ANGLE): 主臂顶 -> 顶部件末端 ----
+    // ---- 3) 顶部件: 锥形段 + 方柱段; +X(凹点面/右)侧完全平直, 仅 -X(凸点面/左)侧收窄 ----
+    // 关键: 截面 x 右缘恒定在 +ARM_W/2(=+10, 与臂右面、圆盘凹点面共线), 只收 -X 侧。
+    //   截面对 cube 左移 offset = ARM_W/2 - w/2 (右缘 +10 不动), 宽度 w 从 20 收到 13(厚)。
     tip = ARM_TIP_ANGLE;
     tdir= [ARM_DIR*cos(tip), sin(tip)];
     q0  = [p3[0] + mdir[0]*ARM_VERT, p3[1] + mdir[1]*ARM_VERT];  // 主臂顶端
-    q3  = [q0[0] + ARM_TIP_LEN*tdir[0], q0[1] + ARM_TIP_LEN*tdir[1]];
-    h2  = ARM_CURVE * ARM_TIP_LEN/2 + 1e-9;
-    d1  = [q0[0] + h2*mdir[0], q0[1] + h2*mdir[1]];        // 切向=主臂方向
-    d2  = [q3[0] - h2*tdir[0], q3[1] - h2*tdir[1]];        // 切向=顶部件方向
-    dsl = ARM_TIP_LEN/N;
+    qn  = [q0[0] + TIP_TAPER*tdir[0], q0[1] + TIP_TAPER*tdir[1]];   // 锥形段/方柱段分界
+    q3  = [q0[0] + ARM_TIP_LEN*tdir[0], q0[1] + ARM_TIP_LEN*tdir[1]]; // 顶部件末端
+    // 3a) 锥形段: 截面宽 w: 20->13(只收 -X), 弦宽 Y: 16->20; 右缘(+X)恒定
+    h2a = ARM_CURVE * TIP_TAPER/2 + 1e-9;
+    da1 = [q0[0] + h2a*mdir[0], q0[1] + h2a*mdir[1]];        // 起点切向=主臂方向
+    da2 = [qn[0] - h2a*tdir[0], qn[1] - h2a*tdir[1]];        // 终点切向=顶部件方向
+    dla = TIP_TAPER/N;
     for(i=[0:N-1]) {
         u  = (i+0.5)/N;
-        pp = _bez(q0, d1, d2, q3, u);
-        dd = _bezd(q0, d1, d2, q3, u);
+        pp = _bez(q0, da1, da2, qn, u);
+        dd = _bezd(q0, da1, da2, qn, u);
         th = atan2(dd[0], dd[1]);
-        translate([0, pp[0], pp[1]]) rotate([-th,0,0]) cube([ARM_W, ARM_T, 2.6*dsl], center=true);
+        w  = ARM_W + (TIP_THK - ARM_W)*u;      // X 厚: 20 -> 13 (只收 -X 侧)
+        tt = ARM_T + (TIP_CHORD - ARM_T)*u;    // Y 弦宽: 16 -> 20
+        translate([ARM_W/2 - w/2, pp[0], pp[1]])
+            rotate([-th,0,0]) cube([w, tt, 2.6*dla], center=true);   // +X 右缘恒定 +ARM_W/2
+    }
+    // 3b) 方柱段: 固定 13厚×20弦宽; +X 右缘恒定
+    dnb = TIP_NECK/N;
+    for(i=[0:N-1]) {
+        s  = TIP_TAPER + (i+0.5)*dnb;
+        yy = q0[0] + s*tdir[0];
+        zz = q0[1] + s*tdir[1];
+        th = atan2(tdir[0], tdir[1]);
+        translate([ARM_W/2 - TIP_THK/2, yy, zz])
+            rotate([-th,0,0]) cube([TIP_THK, TIP_CHORD, 2.6*dnb], center=true);
     }
 }
 
 // ========== 合成 ==========
 union() {
+    // 过渡区 = 整个臂顶(顶部件). 用"半径=圆盘半径(15)、轴向X、圆心=圆盘中心"的圆柱
+    //   磨顶部件末端 → 磨出凹弧面(半径15)贴合圆盘外缘, 绝不侵入圆盘工作面。
     difference() {
-        union() {
-            base();
-            arm();
+        difference() {
+            union() {
+                base();
+                arm();
+            }
+            holes();
         }
-        holes();
-    }
-
-    // ---- 过渡(棱锥磨圆): 大端=臂顶方截面 -> 小端(探到圆盘中心), 小端被半径=圆盘半径(15)的圆柱
-    //     磨成凹圆弧, 凹弧面正好贴合圆盘外缘 → 过渡段沿圆盘外圆周趴下, 绝不侵入圆盘工作面。 ----
-    TIP_TH = atan2(_CTD[0], _CTD[1]);   // 顶部件端面相对 +Z 的倾角(度)
-    difference() {
-        hull() {
-            // 大端: 臂顶方形截面(与顶部件端面同尺寸同面)
-            translate([0, _CQ3[0], _CQ3[1]]) rotate([-TIP_TH,0,0])
-                cube([ARM_W, ARM_T, 6], center=true);
-            // 小端: 圆盘中心处一个小圆鼻(轴向X, 与圆盘同向), 会被磨圆柱切掉
-            translate([CONN_X, _CONP[0], _CONP[1]]) rotate([0,-90,0])
-                cylinder(r=4, h=13, center=true);
-        }
-        // 磨圆柱: 半径=圆盘半径, 轴向X, 圆心=圆盘中心
+        // 磨凹弧: 圆盘同径圆柱(半径=CONN_R, 轴向X, 圆心=圆盘中心)
         translate([CONN_X, _CONP[0], _CONP[1]]) rotate([0,-90,0])
             cylinder(r=CONN_R, h=40, center=true);
     }
