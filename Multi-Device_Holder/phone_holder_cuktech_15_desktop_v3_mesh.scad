@@ -14,21 +14,30 @@ include <BOSL2/math.scad>
 // ---------- 蜂窝挖孔 ----------
 // 在给定面板的本地坐标系(Y-Z 平面)生成六角孔实体,沿 X 贯穿 t 厚。
 // cell=六角孔外接圆半径(mm), wall=孔间壁厚(mm), border=四周实边宽(mm)。
-module honeycomb_cut(t, sy, sz, cell, wall, border) {
+module honeycomb_cut(t, sy, sz, cell, wall, border, keep=[]) {
     Rt = cell + wall/sqrt(3);     // 晶格半径,使孔间壁厚恰为 wall
     dx = 1.5*Rt;                  // 列距(Y 向,前后) —— 六角尖头朝前后(Y)
     dz = sqrt(3)*Rt;              // 行距(Z 向,上下)
-    lim_u = sy/2 - border - cell; // 中心限制(留实边 + 孔半径)
-    lim_v = sz/2 - border - cell;
-    nu = floor(lim_u/dx) + 1;
-    nv = floor(lim_v/dz) + 1;
-    for (i=[-nu:nu])
-        for (j=[-nv:nv])
-            let(u = i*dx, v = j*dz + (i%2 ? dz/2 : 0))
-            if (abs(u)<=lim_u && abs(v)<=lim_v)
-                translate([0, u, v])
-                    rotate([90,0,0]) rotate([0,90,0])
-                        cylinder(r=cell, h=t+2, center=true, $fn=6);
+    nu = ceil(sy/dx/2) + 1;       // 六角柱覆盖整个面板,再由窗口裁剪出平滑边界
+    nv = ceil(sz/dz/2) + 1;
+    difference() {
+        intersection() {
+            union() {
+                for (i=[-nu:nu])
+                    for (j=[-nv:nv])
+                        let(u = i*dx, v = j*dz + (i%2 ? dz/2 : 0))
+                            translate([0, u, v])
+                                rotate([90,0,0]) rotate([0,90,0])
+                                    cylinder(r=cell, h=t+2, center=true, $fn=6);
+            }
+            // 窗口:四周留 border 实边,直线边界 → 蜂窝区域边缘平滑、与隔板外形一致
+            cuboid([t+2, sy-2*border, sz-2*border], rounding=0);
+        }
+        // keep=[ymin,ymax](本地 Y):该纵向带不挖孔(保持实心),用于避开按钮孔等
+        if (len(keep)>=2)
+            translate([0, (keep[0]+keep[1])/2, 0])
+                cuboid([t+3, keep[1]-keep[0], sz+3], rounding=0);
+    }
 }
 
 // ---------- 设备列表派生 ----------
@@ -47,12 +56,12 @@ function fit_devices(devs, sep, gap, baseW, i=0, x=0, kept=[], walls=[]) =
                        concat(walls, [x + sep/2]))
         : [kept, walls, x];
 
-// ---------- 隔板(蜂窝化) ----------
-module separator(size) {
+// ---------- 隔板(蜂窝化;keep=本地 Y 纵向带,该带保持实心以避开按钮孔) ----------
+module separator(size, keep=[]) {
     t = size[0]; sy = size[1]; sz = size[2];
     difference() {
         cuboid([t, sy, sz], rounding=1, except=[BOTTOM], $fn=24);
-        honeycomb_cut(t, sy, sz, mesh_cell, mesh_wall, mesh_border);
+        honeycomb_cut(t, sy, sz, mesh_cell, mesh_wall, mesh_border, keep=keep);
     }
 }
 
@@ -70,10 +79,21 @@ module complete_holder() {
     kept  = res[0];
     sep_l = len(kept) ? concat(res[1], [res[2] + separatorWidth/2]) : [];
 
-    // 隔板(蜂窝)
-    for (xc = sep_l)
+    // 按钮孔前区:蜂窝要避开的实心带(隔板本地 Y),避免按钮孔切进蜂窝网格
+    bh_margin  = 3;                       // 按钮孔腔后壁到蜂窝留 3mm 实心
+    keep_local = [0 - baseDeep/2, button_hole_length + bh_margin - baseDeep/2];
+    bh_x0 = button_hole_pos[0] - button_hole_width/2;
+    bh_x1 = button_hole_pos[0] + button_hole_width/2;
+
+    // 隔板(蜂窝;与按钮孔 x 范围重叠者,前侧保持实心)
+    for (xc = sep_l) {
+        x0 = xc - separatorWidth/2;
+        x1 = xc + separatorWidth/2;
+        overlap = (x0 < bh_x1) && (x1 > bh_x0);
         translate([xc, baseDeep/2, separatorHeight/2 + baseHeight/2])
-            separator([separatorWidth, baseDeep, separatorHeight]);
+            separator([separatorWidth, baseDeep, separatorHeight],
+                      keep = overlap ? keep_local : []);
+    }
 
     // 底板(水平,实心)
     translate([baseWidth/2, baseDeep/2, baseHeight/2])
@@ -108,7 +128,7 @@ difference() {
 //  ★ 定制参数(集中在本文件末尾,与源文件风格一致;请在此修改)★
 // ===================================================================
 // 设备厚度列表(mm)
-devices = [9, 16, 20, 12, 15, 11, 18, 13, 10, 14];
+devices = [9, 16, 20, 12, 18, 11, 18, 13, 10, 14];
 device_gap      = 1;        // 槽两侧各预留余量(mm);槽净宽 = 设备厚度 + 2*device_gap
 
 separatorWidth  = 3;        // 隔板厚(mm)
