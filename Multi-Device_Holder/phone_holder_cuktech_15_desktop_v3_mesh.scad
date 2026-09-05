@@ -74,7 +74,7 @@ module complete_holder() {
     sep_l = len(kept) ? concat(res[1], [res[2] + separatorWidth/2]) : [];
 
     // 按钮孔前区:受影响的隔板自动缩短前端、末端圆角,让出按钮孔,不被按钮孔切到
-    bh_margin = 3;                                // 前缘离按钮孔后壁的余量
+    bh_margin = 1.25;                                // 前缘离按钮孔后壁的余量
     front_cut = button_hole_length + bh_margin;   // 受影响隔板的前缘 y(避开按钮孔)
     bh_x0 = button_hole_pos[0] - button_hole_width/2;
     bh_x1 = button_hole_pos[0] + button_hole_width/2;
@@ -127,7 +127,8 @@ difference() {
 //  ★ 定制参数(集中在本文件末尾,与源文件风格一致;请在此修改)★
 // ===================================================================
 // 设备厚度列表(mm)
-devices = [9, 16, 20, 12, 15, 11, 18, 13, 10, 14];
+// 紫米10，小米pad5，酷态科10号mini，酷态科10号air，墨案迷你阅
+devices = [22, 12, 12, 34, 12];
 device_gap      = 1;        // 槽两侧各预留余量(mm);槽净宽 = 设备厚度 + 2*device_gap
 
 separatorWidth  = 3;        // 隔板厚(mm)
