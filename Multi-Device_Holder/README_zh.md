@@ -5,13 +5,10 @@
 多设备支架，可以架在多口充电器上。可定制多部手机、平板、充电宝等设备。
 
 定制参数:
-```
-baseWidth       = 底座长
-baseDeep        = 底座宽
-baseHeight      = 底座厚度
-separatorWidth  = 隔板厚度
-separatorDeep   = 隔板宽
-separatorHeight = 隔板高
-rechargerHeight = 充电器高
-rechargerWidth  = 充电器宽。由于cuboid是外部宽度，此处实际应设为：充电器实际宽+壁厚baseHeight，建议留足够空间。
-```
+
+参数名 | 说明 | 默认值
+------| ---- | ------
+device_spec | 灵活配置隔板间隔。“设备名:设备宽厚” 多个设备配置用逗号分隔 | "紫米10号:22,pad:12,手机/阅读器:12,酷态科10号 air:19,酷态科10号 mini:34"
+baseWidth | 支架总宽度（X向）, 这个限定了支架宽度。设备列表超过此宽度将被忽略 | 155
+separatorHeight | 隔板高度。隔板用于支撑放置的设备，根据需要调整 | 33.5
+rechargerHeight | 支脚高度。和充电器一样。默认是酷态科15号桌面充电站。加了垫脚或用其他充电器应相应调整 | 65
