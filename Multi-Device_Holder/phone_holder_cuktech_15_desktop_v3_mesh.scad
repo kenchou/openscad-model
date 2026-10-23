@@ -235,7 +235,7 @@ module name_labels(spec) {
 }
 
 // ---------- 合成 ----------
-difference() {
+tilt(BACK) difference() {
     complete_holder();
     if (SHOW_CUTOUT) cutout_shape(button_hole_pos);
     name_labels(device_spec);      // 设备名刻到底板
@@ -253,7 +253,7 @@ device_gap      = 1;        // 槽两侧各预留余量(mm);槽净宽 = 设备�
 engrave_depth     = 0.6;        // 刻字深度(mm,建议 0.5~1)
 engrave_font      = 6;          // 刻字字号(mm;受槽宽限制会自动缩小)
 engrave_min       = 6;        // 最小可读字号(mm);单行字号低于此则自动换行
-engrave_font_face = "Songti SC";  // 中文字体(宋体,最通用;本机可用 Songti SC / Arial Unicode MS / Hiragino Sans GB)
+engrave_font_face = "Noto Serif SC";  // 中文字体(宋体,最通用;本机可用 Songti SC / Arial Unicode MS / Hiragino Sans GB)
 engrave_flip      = true;        // 刻字朝向:true=反向(文字旋转180°),false=默认朝向
 engrave_avoid_frac = 1/3;        // 按钮孔切成槽宽达该比例才避让文字(否则整槽居中,显示更全)
 
