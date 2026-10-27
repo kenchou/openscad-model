@@ -16,8 +16,8 @@ include <BOSL2/std.scad>;
 /* [Dimensions] */
 width = 37.7;
 depth = 12;
-baseplate_thickness = 1; 
-text_thickness = 0.6;
+baseplate_thickness = 0.6; 
+text_thickness = 0.4;
 /* [Label] */
 label = "M3x12";
 //顶视图图标(驱动槽型/零件俯视): Hex Socket=内六角, Phillips=十字, Slotted=一字, Torx=梅花, Hex Head=六角头, 其余为零件图标
@@ -25,13 +25,13 @@ icon_top = "Hex Socket"; // [None, Hex Socket, Phillips, Slotted, Torx, Hex Head
 //侧视图图标(螺丝头部形状/零件侧视): Countersunk=沉头, Socket Cap=杯头, Pan Head=盘头, Grub Screw=紧定螺钉, 其余为零件图标
 icon_side = "Socket Cap"; // [None, Countersunk, Socket Cap, Pan Head, Grub Screw, Spring, Capacitor, LED, Motor, Connector, Heat Shrink Tube]
 //两个图标之间的间距
-icon_gap = 1.2;
+icon_gap = 1.0;
 //图标与文字之间的间距
-icon_spacing = 2.5;
+icon_spacing = 1.0;
 font = "Noto Sans Mono"; //font
 text_size = 5;
 //reduces the width by 2mm, in order to add 1mm Pred Tabs on both sides
-Pred_Tabs = false;
+Pred_Tabs = true;
 //for a cleaner look
 Remove_Pred_Tab_Holes = false;
 /* [Batch Export] */
@@ -47,7 +47,9 @@ frame_color = "#000000"; //color
 icon_color = "#000000"; //color
 color_magnet_icon = true;
 /* [Hidden] */
-frame_thickness = 1;
+tab_depth = 5;
+tab_width = 1;
+frame_thickness = 0;
 text_w = textmetrics(text=label, size=text_size, font=font);
 
 //////////////////////////////////////////////////////////////
@@ -96,7 +98,6 @@ module label(label_text="", text_width=0) {
             //Pred Tabs
             if(Pred_Tabs == true) {
                 pred_tabs();
-                
             }
         }
         if(Pred_Tabs == true && Remove_Pred_Tab_Holes == false) {
@@ -190,28 +191,34 @@ module offset_shell(size, radius) {
 
 module pred_tabs() {
     //Left Tabs
-    translate([0, depth/2-5.7/2, 0]) {
-        color(base_color) cube([1, 5.7, baseplate_thickness]);
+    translate([0, depth/2-tab_depth/2, 0]) {
+        color(base_color) cube([tab_width, tab_depth, baseplate_thickness]);
+        /*
         translate([0, 0, baseplate_thickness]) {
             color(frame_color) cube([1, 5.7, text_thickness]);
         }
+        */
     }
+    /*
     if(Remove_Pred_Tab_Holes == false) {
-        translate([1.5, depth/2, baseplate_thickness])
+        #translate([1.5, depth/2, baseplate_thickness])
             color(frame_color) cylinder(h=text_thickness, d=2.5, $fn=50);
-    }
+    }*/
 
     //Right Tabs
-    translate([width-1, depth/2-5.7/2, 0]) {
-        color(base_color) cube([1, 5.7, baseplate_thickness]);
+    translate([width - tab_width, (depth - tab_depth) / 2, 0]) {
+        color(base_color) cube([tab_width, tab_depth, baseplate_thickness]);
+        /*
         translate([0, 0, baseplate_thickness]) {
             color(frame_color) cube([1, 5.7, text_thickness]);
         }
+        */
     }
+    /*
     if(Remove_Pred_Tab_Holes == false) {
         translate([width-1.5, depth/2, baseplate_thickness])
             color(frame_color) cylinder(h=text_thickness, d=2.5, $fn=50);
-    }
+    }*/
         
 }
 
@@ -281,7 +288,7 @@ module draw_icon(name, x_center=0) {
     box = icon_box(name);
     ip = (box[0] + box[1]) / 2 - x_center;
 
-    if(name == "Hex Socket")            socket_head2(i_position=ip);
+    if(name == "Hex Socket")            socket_head(i_position=ip);
     else if(name == "Phillips")         phillips_head(i_position=ip);
     else if(name == "Slotted")          slotted_head(i_position=ip);
     else if(name == "Torx")             torx_head(i_position=ip);
@@ -294,7 +301,7 @@ module draw_icon(name, x_center=0) {
     else if(name == "Magnet-U")         magnet_u(i_position=ip);
     else if(name == "Resistor")         resistor(i_position=ip);
     else if(name == "Countersunk")      countersunk(i_position=ip);
-    else if(name == "Socket Cap")       socket_head(i_position=ip);
+    else if(name == "Socket Cap")       socket_cap(i_position=ip);
     else if(name == "Pan Head")         lens_head(i_position=ip);
     else if(name == "Grub Screw")       grub_screw(i_position=ip);
     else if(name == "Spring")           spring(i_position=ip);
@@ -363,7 +370,7 @@ module torx_head(i_position=0) {
     }
 }
 
-module socket_head(i_position=0) {
+module socket_cap(i_position=0) {
     translate([-1-i_position, 0.5, 0]) {
         color(icon_color) cube([4, 2, text_thickness]); //Screw Head
     }
@@ -372,14 +379,14 @@ module socket_head(i_position=0) {
     }
 }
 
-module socket_head2(i_position=0) {
+module socket_head(i_position=0) {
     translate([-1-i_position, 0, 0]) {
         color(icon_color)
             difference() {
                 linear_extrude(text_thickness)
                     circle(r=3.2, $fn=50);
                 linear_extrude(text_thickness+1)
-                    circle(r=2.2, $fn=6);
+                    circle(r=2.0, $fn=6);
                 
             }
     }
