@@ -21,7 +21,7 @@ Bin_Width = 1;
 // Depth of the bin in Gridfinity units. 1 unit = 42 mm.
 Bin_Depth = 1;  
 // Height of the bin in Gridfinity height units.
-Bin_Height = 3;
+Bin_Height = 6;
 
 /* [🧩 Compartments] */
 // Number of compartments from left to right. Set to 0 for a solid bin.
@@ -51,9 +51,9 @@ Base_Hole_Style = 2; // [0:No holes, 1:Magnet holes only, 2:Magnet and screw hol
 
 /* [🎨 Colors] */
 // Main bin color, including walls and bottom base.
-Bin_Color = "#EEEEEE"; //"#FF5A1F"; // color
+Bin_Color = "#FFFFFF"; //"#FF5A1F"; // color
 // Separate color for the top edge / stacking lip.
-Top_Edge_Color = "#FF5A1F"; // color
+Top_Edge_Color = "#CCCCCC"; // color
 // Height of the colored top edge in mm.
 Top_Edge_Color_Height = 1.0; // [0.5:0.05:8]
 
@@ -69,7 +69,9 @@ style_tab = Label_Holder ? 0 : 5;
 pred_label_clearance = 0.35;
 pred_label_back_offset = 3.4;
 pred_label_holder_margin = 3.0;
-engrave_depth = 0.4;
+bottom_engrave_depth = 0.6;
+bottom_text_size = 4.5;
+bottom_text_font = "NotoMono Nerd Font Mono:style=Regular";
 
 /* Setup Parameters */
 $fa = 8;
@@ -256,19 +258,19 @@ module gridfinityBase(gx, gy, l, dx, dy, style_hole, off=0, final_cut=true, only
 
 module block_base(gx, gy, l, dbnx, dbny, style_hole, off) {
     render(convexity = 2)
-    difference() {
+    #difference() {
         block_base_solid(dbnx, dbny, l, off);
         
         if (style_hole > 0)
             pattern_circular(abs(l-$d_hole_from_side/2)<0.001?1:4) 
             translate([l/2-$d_hole_from_side, l/2-$d_hole_from_side, 0])
             block_base_hole(style_hole, off);
-        }
         // 底面刻字
         #translate([0, 0, 0])
-            linear_extrude(height=engrave_depth)
-                mirror([1,0,0])          // 核心：左右镜像，底面看文字才正
-                    text(str("C", Bin_Width, "/R", Bin_Depth, "/H", Bin_Height), size=4, halign="center", valign="center", font="NotoMono Nerd Font Mono:style=Regular");
+            mirror([1,0,0])          // 核心：左右镜像，底面看文字才正
+            linear_extrude(height=bottom_engrave_depth)
+            text(str("C", Bin_Width, "/R", Bin_Depth, "/H", Bin_Height), size=bottom_text_size, halign="center", valign="center", font=bottom_text_font);
+    }
 }
 
 module block_base_solid(dbnx, dbny, l, o) { 
