@@ -10,6 +10,13 @@
 //   https://github.com/kennetek/gridfinity-rebuilt-openscad
 //
 // Original base license: CC-Attribution-Noncommercial-Share Alike
+//
+// ===== 变体说明(2026-10-28) =====
+// 双色色带只保留"箱口(标签架顶面)以上"那一圈唇口:标签架与主体同色。
+// 分色改用"平面切",不再用"减去色带实体"——
+// 后者色带侧面与箱体墙面完全共面(相切布尔),OpenSCAD/CGAL 会留下
+// 0 面积面、完全重复面、被 4 个三角面共用的边,切片软件会报"非流形边"。
+// 本文件由 Gridfinity_bin_by_pred_customizable.scad 派生,原文件未改动。
 
 // preview[view:south west, tilt:side]
 
@@ -21,7 +28,7 @@ Bin_Width = 1;
 // Depth of the bin in Gridfinity units. 1 unit = 42 mm.
 Bin_Depth = 1;  
 // Height of the bin in Gridfinity height units.
-Bin_Height = 6;
+Bin_Height = 3;
 
 /* [🧩 Compartments] */
 // Number of compartments from left to right. Set to 0 for a solid bin.
@@ -47,14 +54,15 @@ Corner_Holes_Only = false;
 // Add the Pred-style snap-in label holder for the matching labels.
 Label_Holder = true;
 // Bottom hole style for magnets and/or screws.
-Base_Hole_Style = 2; // [0:No holes, 1:Magnet holes only, 2:Magnet and screw holes, 3:Magnet and screw holes with printable slit]
+Base_Hole_Style = 3; // [0:No holes, 1:Magnet holes only, 2:Magnet and screw holes, 3:Magnet and screw holes with printable slit]
 
 /* [🎨 Colors] */
 // Main bin color, including walls and bottom base.
 Bin_Color = "#FFFFFF"; //"#FF5A1F"; // color
 // Separate color for the top edge / stacking lip.
-Top_Edge_Color = "#CCCCCC"; // color
-// Height of the colored top edge in mm.
+Top_Edge_Color = "#FF5A1F"; // color
+// Height of the colored top edge in mm. 仅在无唇口(Top_Lip_Style != 0)时使用;
+// 有唇口时色带固定为"标签架顶面(=箱口)以上"那一圈。
 Top_Edge_Color_Height = 1.0; // [0.5:0.05:8]
 
 
@@ -175,6 +183,8 @@ module gridfinity_top_edge(gx, gy, h, l = l_grid) {
     }
 }
 
+// 注意:本案不再使用这个色带实体做布尔(它侧面与墙体共面,相减会产生非流形边),
+// 保留仅为对照。
 module gridfinity_top_edge_color_band(gx, gy, h, l = l_grid) {
     top_z = h + 2 * $h_base;
     band_height = Top_Edge_Color_Height + $h_base;
@@ -652,24 +662,38 @@ module pred_label_holder_cuts() {
 
 bin_height = height(Bin_Height, Height_Mode, Top_Lip_Style, Snap_Height_To_Grid);
 
-color(Bin_Color)
-difference() {
+// 色带分界平面:
+// - 有堆叠唇口时取"标签架顶面"(= 箱口高度 bin_height + $h_base):
+//   该平面以上只有唇口那一圈,所以只有外墙顶圈是色带色,标签架(含顶面、标签槽)与主体同色。
+// - 无唇口时箱口以上没有材料,退回到 Top_Edge_Color_Height 指定的深度。
+band_z = (Top_Lip_Style == 0)
+       ? bin_height + $h_base
+       : bin_height + $h_base - Top_Edge_Color_Height;
+
+module bin_full() {
     union() {
         gridfinity_bottom_with_cuts(Bin_Width, Bin_Depth, bin_height, Internal_Height_mm) {
             if (Compartments_Left_To_Right > 0 && Compartments_Front_To_Back > 0)
                 cutEqual(n_divx = Compartments_Left_To_Right, n_divy = Compartments_Front_To_Back, style_tab = style_tab, scoop_weight = Scoop_Size);
         }
-
         gridfinity_top_edge(Bin_Width, Bin_Depth, bin_height);
-        gridfinityBase(Bin_Width, Bin_Depth, l_grid, div_base_x, div_base_y, Base_Hole_Style, only_corners=Corner_Holes_Only);
+        gridfinityBase(Bin_Width, Bin_Depth, l_grid, div_base_x, div_base_y, Base_Hole_Style, only_corners = Corner_Holes_Only);
     }
+}
 
-    gridfinity_top_edge_color_band(Bin_Width, Bin_Depth, bin_height);
+// 两个色块都用"大盒子平面切":各自是同一实体的上/下半,接缝只在平面处,
+// 不会像"减色带实体"那样出现与墙体共面的相切布尔。
+module cut_below(z) { translate([-500, -500, z - 500]) cube([1000, 1000, 500]); }
+module cut_above(z) { translate([-500, -500, z])       cube([1000, 1000, 500]); }
+
+color(Bin_Color)
+difference() {
+    intersection() { bin_full(); cut_below(band_z); }
     pred_label_holder_cuts();
 }
 
 color(Top_Edge_Color)
 difference() {
-    gridfinity_top_edge_color_band(Bin_Width, Bin_Depth, bin_height);
+    intersection() { bin_full(); cut_above(band_z); }
     pred_label_holder_cuts();
 }
